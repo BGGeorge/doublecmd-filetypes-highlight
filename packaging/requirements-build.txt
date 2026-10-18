@@ -1,0 +1,2 @@
+# 构建发行包所需（Python 3.8 x64，获得最大 Win7 兼容性）
+pyinstaller==4.10

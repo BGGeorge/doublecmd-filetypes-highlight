@@ -1,0 +1,15 @@
+# 本地安装记录（含个人路径），不要提交
+installed.json
+
+# Python
+__pycache__/
+*.pyc
+
+# 构建与发行产物
+_build/
+_dist/
+*.spec
+
+# 临时文件
+*.fth-tmp
+*.bak

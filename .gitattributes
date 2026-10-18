@@ -1,0 +1,8 @@
+# .cmd 批处理必须保留 CRLF（cmd.exe 对 LF-only 的标签/括号块解析不可靠）
+# 用 -text 让仓库中保存的就是 CRLF 原始字节，网页/原始文件下载也保持 CRLF
+*.cmd -text
+
+# 二进制文件不做行尾/文本转换
+*.png binary
+*.exe binary
+*.zip binary
