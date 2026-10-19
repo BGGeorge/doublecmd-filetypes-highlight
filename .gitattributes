@@ -2,6 +2,9 @@
 # 用 -text 让仓库中保存的就是 CRLF 原始字节，网页/原始文件下载也保持 CRLF
 *.cmd -text
 
+# .ps1 含中文/BOM，也按原始字节保存（PowerShell 对 LF 脚本解析正常，不做转换最安全）
+*.ps1 -text
+
 # 二进制文件不做行尾/文本转换
 *.png binary
 *.exe binary

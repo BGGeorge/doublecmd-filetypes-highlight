@@ -2,8 +2,9 @@
 
 按**文件扩展名/掩码**给 Double Commander 文件面板中的**文件名**上色 —— 压缩包蓝色、图片品红、代码靛蓝、音频橙色……效果等同于官方设置「选项 → 颜色 → 文件类型颜色」，并附带 **14 个分类、2688 条掩码**的规则包、图形界面与一键安装工具。
 
-* **免 Python 一键安装**：Windows 7 SP1 / 8 / 8.1 / 10 / 11（64 位）
+* **免 Python 一键安装**：Windows 7 SP1 / 8 / 8.1 / 10 / 11（提供 **win64** 与 **win32** 两个包）
 * 兼容 Double Commander **1.1.x**（`colors.json`）与 **1.0.x**（`doublecmd.xml`）
+* **便携版 / 安装版**均支持：便携版可把 DC 程序文件夹（或 `settings` 文件夹、`doublecmd.exe`）**直接拖到安装窗口**上自动定位
 * 写入前**自动备份**，可一键卸载 / 还原；不影响你自己的其它规则
 * 不改动 Double Commander 一行源码
 
@@ -20,18 +21,42 @@
 
 ## 下载安装（一键）
 
-1. 到 [Releases](../../releases/latest) 下载 `dcmd-filetypes-highlight-1.0.0.zip`
+1. 到 [Releases](../../releases/latest) 下载压缩包 —— **按你的 Windows 位数选**：
+
+   | 你的系统 | 下载 |
+   | --- | --- |
+   | 64 位 Windows（绝大多数情况） | `dcmd-filetypes-highlight-1.0.1-win64.zip` |
+   | 32 位 Windows | `dcmd-filetypes-highlight-1.0.1-win32.zip` |
+
+   > 不确定？打开「设置 → 系统 → 关于」（Win7：右键“计算机”→“属性”），看“系统类型”。也可以在解压后直接双击 `install.cmd`：装错包时它会明确提示你该换哪个。
+   > 提示：工具包的位数与你 Double Commander 的位数**无关**（32/64 位 DC 都可使用），只取决于你的 Windows。
+
 2. 解压到任意可写目录；**完全退出 Double Commander**（含托盘图标）
-3. 双击 **`install.cmd`**，看到 `[DONE]` 即安装成功
+3. 双击 **`install.cmd`**，按屏幕提示操作，看到 `[DONE]` 即安装成功
 4. 启动 Double Commander —— 文件面板里的文件名就会按类型着色
 
-如果脚本提示找不到配置目录，改用下面任一方式指定（路径换成你自己的）：
+`install.cmd` 会自动探测 DC 配置目录（运行中的 DC 进程 / 解压目录附近 / 常见安装位置 / `%APPDATA%`），找到后会请你**回车确认**，也支持：
+
+* 把 DC 的**程序文件夹**、**`settings` 文件夹**或 **`doublecmd.exe`** 从资源管理器**拖进窗口**后回车；
+* 直接回车（探测不到时）弹出**文件夹选择框**；
+* 或者带参数运行：
 
 ```bat
-dcmd_hl_cli.exe install -c "C:\Users\你的用户名\AppData\Roaming\doublecmd"   :: 普通安装版
-dcmd_hl_cli.exe install -c "D:\Tools\doublecmd\settings"                     :: 便携版（一般是 <程序目录>\settings）
-dcmd_hl_cli.exe install --exe "D:\Tools\doublecmd\doublecmd.exe"             :: 指向 doublecmd.exe 也行
+install.cmd "D:\Tools\doublecmd"                    :: 便携版：DC 程序文件夹（自动找它的 settings）
+install.cmd -c "D:\Tools\doublecmd\settings"        :: 便携版：配置目录（含 colors.json / doublecmd.inf）
+install.cmd -c "C:\Users\你的用户名\AppData\Roaming\doublecmd"   :: 安装版
 ```
+
+等价的命令行写法：
+
+```bat
+dcmd_hl_cli.exe install "D:\Tools\doublecmd"          :: 程序文件夹 / settings / doublecmd.exe 都识别
+dcmd_hl_cli.exe install -c "D:\Tools\doublecmd\settings"
+dcmd_hl_cli.exe install --exe "D:\Tools\doublecmd\doublecmd.exe"
+```
+
+> 便携版的配置目录一般是 **`<DC 程序目录>\settings`**（判断标志：里面有 `doublecmd.inf` 或 `colors.json`）。
+> 便携包**从未启动过 DC 也能安装**（安装包自带的 `settings\doublecmd.inf` 就足以被识别）；安装完成后启动 DC 即可看到颜色。
 
 ## 从源码运行（需要 Python 3.8+）
 
@@ -51,12 +76,12 @@ python src\dcmd_hl.py install    :: 写入 DC 配置（自动备份）
 
 | 项目 | 支持范围 |
 | --- | --- |
-| Windows | 7 SP1 / 8 / 8.1 / 10 / 11，**64 位**（32 位系统请用源码方式运行） |
-| Double Commander | 1.1.x（实测 1.1.32）与 1.0.x；便携版 / 安装版均可 |
+| Windows | 7 SP1 / 8 / 8.1 / 10 / 11；**64 位**用 `win64` 包，**32 位**用 `win32` 包（ARM64 设备建议用 `win32` 包，或源码方式运行） |
+| Double Commander | 1.1.x（实测 1.1.32）与 1.0.x；便携版 / 安装版均可；32 / 64 位 DC 均可 |
 | 运行依赖 | 无（exe 内置运行时）；源码方式需要 Python 3.8+ |
 
 * **Win7**：需已安装 SP1 与常规系统更新（Universal C Runtime）。首次运行 exe 若出现 SmartScreen 提示，点“更多信息 → 仍要运行”即可。
-* 配置目录自动探测顺序：显式 `--exe`/`-c` → 运行中的 DC 进程 → 常见安装位置 → 上次安装记录 → `%APPDATA%\doublecmd` → `%LOCALAPPDATA%\doublecmd`。
+* 配置目录自动探测顺序：显式指定（`-c` / `--exe` / 位置参数）→ 运行中的 DC 进程 → **解压目录附近**（父目录、`*doublecmd*` 子目录，覆盖便携版）→ 上次安装记录 → 常见安装位置 → `%APPDATA%\doublecmd` → `%LOCALAPPDATA%\doublecmd`。给的是 DC 程序目录 / `doublecmd.exe` 时会自动定位到 `<程序目录>\settings` 或 `%APPDATA%`。
 
 ## 规则包
 
@@ -113,6 +138,9 @@ dcmd_hl_cli.exe restore <备份文件> -y
 **提示“Double Commander 正在运行，拒绝写入”？**
 DC 退出时会把内存中的设置写回配置文件、覆盖修改。请完全退出 DC（含托盘图标）后再安装。确实要强写可加 `--force`（不推荐）。
 
+**便携版不知道怎么装？**
+双击 `install.cmd` 后，把 DC 的程序文件夹（含 `doublecmd.exe`）**拖进窗口**再回车即可，工具会自动使用 `<程序目录>\settings`；也可以直接回车让工具弹出文件夹选择框。若你之前误装到了 `%APPDATA%\doublecmd`（安装版的位置），重装到便携版目录即可——两者互不影响，`dcmd_hl_cli.exe status` 可随时查看当前写入的是哪个目录。
+
 **控制台里中文乱码？**
 真实控制台窗口显示正常；输出重定向到文件时是 UTF-8 编码，请用支持 UTF-8 的查看器打开。
 
@@ -132,8 +160,9 @@ doublecmd-filetypes-highlight/
 │  ├─ gui.png               界面截图
 │  └─ 技术文档.md           原理、源码依据、规则格式、分类详解
 ├─ packaging/
-│  ├─ build.ps1             构建 Windows 发行包（Python 3.8 + PyInstaller 4.10）
-│  ├─ install.cmd           包内“一键安装”脚本（随发行包分发）
+│  ├─ build.ps1             构建 Windows 发行包（win64/win32 各构建一次）
+│  ├─ install.cmd           包内“一键安装”脚本（随发行包分发；含位数检查、拖拽定位、文件夹选择器）
+│  ├─ pick-folder.ps1       install.cmd 调用的文件夹选择对话框
 │  └─ README-package.md     发行包内附的用户指南
 ├─ README.md
 └─ LICENSE
@@ -142,9 +171,11 @@ doublecmd-filetypes-highlight/
 ## 构建发行包
 
 ```powershell
-# 需要 Python 3.8 x64（最后支持 Win7 的版本）并安装 pyinstaller==4.10
+# 需要 Python 3.8（最后支持 Win7 的版本）+ pyinstaller==4.10；
+# win64 用 64 位解释器，win32 用 32 位解释器，各构建一次：
 python -m pip install pyinstaller==4.10
-powershell -ExecutionPolicy Bypass -File packaging\build.ps1 -Python "C:\Python38\python.exe" -Version 1.0.0
+powershell -ExecutionPolicy Bypass -File packaging\build.ps1 -Python "C:\Python38-x64\python.exe" -Arch win64 -Version 1.0.1
+powershell -ExecutionPolicy Bypass -File packaging\build.ps1 -Python "C:\Python38-x86\python.exe" -Arch win32 -Version 1.0.1
 ```
 
 ## 为什么不是传统插件？

@@ -421,9 +421,11 @@ class HighlighterApp(tk.Tk):
                 messagebox.showwarning(
                     APP_TITLE,
                     "未能自动找到 Double Commander 配置目录。\n\n"
-                    "请点击『浏览…』选择，通常是：\n"
-                    "  便携版：<程序目录>\\settings\n"
-                    "  安装版：%APPDATA%\\doublecmd",
+                    "可以把下面任意一种路径填进“配置目录”（或点『浏览…』选择），\n"
+                    "工具会自动定位到真正的配置目录：\n"
+                    "  · 便携版：DC 程序目录（含 doublecmd.exe），配置一般是 <程序目录>\\settings\n"
+                    "  · 安装版：%APPDATA%\\doublecmd\n"
+                    "  · 也可以直接填 doublecmd.exe 的路径",
                 )
         else:
             self.var_cfg.set(str(cfg))
@@ -453,6 +455,19 @@ class HighlighterApp(tk.Tk):
 
     def _update_config_status(self) -> None:
         cfg = self._current_cfg()
+        if cfg and not dcmd_hl.looks_like_config_dir(cfg):
+            # 允许填 DC 程序目录 / doublecmd.exe，自动定位到真正的配置目录
+            kind, resolved, _note = dcmd_hl.resolve_path_hint(str(cfg))
+            if kind == "exe":
+                found, source, _checked = dcmd_hl.detect_config_dir(str(resolved))
+                if found is not None:
+                    cfg = found
+                    self.var_cfg.set(str(found))
+                    self._set_status(f"已自动定位到配置目录（{source}）")
+            elif kind == "config" and str(resolved) != str(cfg):
+                cfg = resolved
+                self.var_cfg.set(str(resolved))
+                self._set_status(f"已自动定位到配置目录: {resolved}")
         if not cfg or not cfg.is_dir():
             self.lbl_cfg_state.configure(
                 text="⚠ 配置目录无效：请选择 DC 的配置目录（便携版一般为 <程序目录>\\settings）",
