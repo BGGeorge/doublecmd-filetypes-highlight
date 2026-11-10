@@ -126,7 +126,7 @@ jobs:
     container: fedora:latest
     steps:
       - name: Install base tools
-        run: dnf install -y git nodejs tar gzip curl findutils which python3 python3-tkinter desktop-file-utils shadow-utils
+        run: dnf install -y git nodejs tar gzip curl findutils which python3 python3-tkinter desktop-file-utils shadow-utils util-linux
 
       - uses: actions/checkout@v4
 
