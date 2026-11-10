@@ -66,6 +66,9 @@ class TempCase(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp(dir=TEST_ROOT))
         self.cfg = self.tmp / "doublecmd"
         self.cfg.mkdir()
+        # 每个用例使用独立的安装记录，否则“上次安装记录”会把前一个用例的
+        # 临时配置目录当成真实候选，干扰 detect_config_dir() 的断言。
+        dcmd_hl.MANIFEST_FILE = self.tmp / "state" / "installed.json"
 
     def write_json(self, data) -> Path:
         path = self.cfg / "colors.json"
@@ -294,7 +297,9 @@ class Platform(TempCase):
         settings.mkdir()
         (settings / "doublecmd.inf").write_text("", encoding="utf-8")
         (settings / "colors.json").write_text("{}", encoding="utf-8")
-        detected, _source, _checked = dcmd_hl.detect_config_dir(str(dc))
+        # detect_config_dir() 的参数是 DC 可执行文件路径（命令行 --exe 已由
+        # resolve_path_hint() 归一化），因此这里传入目录中的 doublecmd。
+        detected, _source, _checked = dcmd_hl.detect_config_dir(str(dc / "doublecmd"))
         self.assertEqual(dcmd_hl._norm(detected), dcmd_hl._norm(settings))
 
     @LINUX_ONLY
