@@ -204,6 +204,19 @@ def build_nfpm_config(
         if path.is_file():
             files.append(path)
 
+    # RPM 只会删除 cpio 中显式列出的目录；只打包文件会留下空的
+    # /usr/lib/dcmd-filetypes-highlight 等目录。这里显式声明本包专属目录，
+    # 让 .rpm 在卸载时能干净移除（.deb 同样受益）。共享父目录
+    # （/usr、/usr/bin、/usr/share/applications 等）不归本包所有。
+    app_root = stage / APP_DIR.lstrip("/")
+    dirs: list[Path] = [app_root]
+    if app_root.is_dir():
+        dirs.extend(sorted(p for p in app_root.rglob("*") if p.is_dir()))
+    for shared in (DOC_DIR, LICENSE_DIR):
+        path = stage / shared.lstrip("/")
+        if path.is_dir():
+            dirs.append(path)
+
     lines: list[str] = [
         f"name: {yaml_str(APP_NAME)}",
         "arch: all",
@@ -246,6 +259,15 @@ def build_nfpm_config(
             f"    dst: {yaml_str(dst)}",
             "    file_info:",
             f"      mode: {mode}",
+        ]
+
+    for path in dirs:
+        rel = path.relative_to(stage).as_posix()
+        lines += [
+            f"  - dst: {yaml_str('/' + rel)}",
+            "    type: dir",
+            "    file_info:",
+            "      mode: 0755",
         ]
 
     lines += [

@@ -302,6 +302,8 @@ else
     echo "Python 3 is required. Install python3 first." >&2
     exit 1
 fi
+PYTHONDONTWRITEBYTECODE=1
+export PYTHONDONTWRITEBYTECODE
 exec "\$PY" "$target" "\$@"
 EOF
     chmod 755 "$dest"
@@ -339,6 +341,8 @@ openSUSE:      sudo zypper install python3-tk
     fi
     exit 1
 fi
+PYTHONDONTWRITEBYTECODE=1
+export PYTHONDONTWRITEBYTECODE
 exec "\$PY" "$target" "\$@"
 EOF
     chmod 755 "$dest"

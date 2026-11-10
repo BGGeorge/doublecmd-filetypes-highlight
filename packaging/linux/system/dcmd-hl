@@ -5,4 +5,7 @@ if ! command -v python3 >/dev/null 2>&1; then
     echo "python3 is required. Install it with your package manager." >&2
     exit 1
 fi
+# 不在 /usr/lib 下生成 __pycache__，保证卸载后目录干净
+PYTHONDONTWRITEBYTECODE=1
+export PYTHONDONTWRITEBYTECODE
 exec python3 "$APP_DIR/src/dcmd_hl.py" "$@"

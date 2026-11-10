@@ -26,4 +26,7 @@ openSUSE:      sudo zypper install python3-tk
     fi
     exit 1
 fi
+# 不在 /usr/lib 下生成 __pycache__，保证卸载后目录干净
+PYTHONDONTWRITEBYTECODE=1
+export PYTHONDONTWRITEBYTECODE
 exec "$PY" "$APP_DIR/src/dcmd_hl_gui.py" "$@"
