@@ -310,6 +310,31 @@ class Platform(TempCase):
         self.assertFalse(dcmd_hl._is_scan_skip_path(Path("/home/user")))
 
     @LINUX_ONLY
+    def test_system_package_state_dir_is_per_user(self) -> None:
+        self.assertTrue(dcmd_hl._is_system_app_dir(Path("/usr/lib/dcmd-filetypes-highlight")))
+        self.assertTrue(dcmd_hl._is_system_app_dir(Path("/opt/dcmd-filetypes-highlight")))
+        self.assertFalse(dcmd_hl._is_system_app_dir(Path("/home/user/dcmd-filetypes-highlight")))
+        old_script = dcmd_hl.SCRIPT_DIR
+        old_override = os.environ.pop("DCMD_HL_STATE_DIR", None)
+        old_xdg = os.environ.get("XDG_STATE_HOME")
+        state_home = self.tmp / "state-home"
+        os.environ["XDG_STATE_HOME"] = str(state_home)
+        dcmd_hl.SCRIPT_DIR = Path("/usr/lib/dcmd-filetypes-highlight")
+        try:
+            self.assertEqual(
+                dcmd_hl._default_state_dir(),
+                state_home / "dcmd-filetypes-highlight",
+            )
+        finally:
+            dcmd_hl.SCRIPT_DIR = old_script
+            if old_override is not None:
+                os.environ["DCMD_HL_STATE_DIR"] = old_override
+            if old_xdg is None:
+                os.environ.pop("XDG_STATE_HOME", None)
+            else:
+                os.environ["XDG_STATE_HOME"] = old_xdg
+
+    @LINUX_ONLY
     def test_permissions_preserved(self) -> None:
         store = self.write_json({"FileColors": []})
         os.chmod(store, 0o600)

@@ -131,31 +131,46 @@ BACKUP_MARK = ".fth-backup-"         # 备份文件名标记
 TMP_SUFFIX = ".fth-tmp"
 
 
-def _default_state_dir() -> Path:
-    """安装记录目录：环境变量 DCMD_HL_STATE_DIR > 程序目录（可写时）> 用户状态目录。
+def _is_system_app_dir(path: Path) -> bool:
+    """Linux 系统级安装目录（/usr、/opt 等）不应写入用户状态。"""
+    if not IS_LINUX:
+        return False
+    text = str(path)
+    return any(
+        text == prefix.rstrip("/") or text.startswith(prefix)
+        for prefix in ("/usr/", "/opt/", "/var/", "/snap/")
+    )
 
-    程序目录只读（例如 /usr/lib、Program Files）或需要独立测试记录时自动换位置。
+
+def _default_state_dir() -> Path:
+    """安装记录目录：环境变量 DCMD_HL_STATE_DIR > 程序目录（可写且非系统目录）> 用户状态目录。
+
+    程序目录只读（例如 /usr/lib、Program Files）、位于 Linux 系统目录
+    （root 运行时可写，但不应把 per-user 记录写进系统包目录）或需要独立测试记录时
+    自动换位置。
     """
     override = os.environ.get("DCMD_HL_STATE_DIR", "").strip()
     if override:
         return Path(override).expanduser()
-    probe = SCRIPT_DIR / f".write-test{TMP_SUFFIX}"
-    try:
-        probe.write_text("", encoding="utf-8")
-        probe.unlink()
-        return SCRIPT_DIR
-    except OSError:
-        if IS_WINDOWS:
-            base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
-            if base:
-                return Path(base) / "dcmd-filetypes-highlight"
-        elif IS_MACOS:
-            return Path.home() / "Library" / "Application Support" / "dcmd-filetypes-highlight"
-        else:
-            xdg_state = os.environ.get("XDG_STATE_HOME", "").strip()
-            base = Path(xdg_state).expanduser() if xdg_state else Path.home() / ".local" / "state"
-            return base / "dcmd-filetypes-highlight"
-        return SCRIPT_DIR
+    if not _is_system_app_dir(SCRIPT_DIR):
+        probe = SCRIPT_DIR / f".write-test{TMP_SUFFIX}"
+        try:
+            probe.write_text("", encoding="utf-8")
+            probe.unlink()
+            return SCRIPT_DIR
+        except OSError:
+            pass
+    if IS_WINDOWS:
+        base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
+        if base:
+            return Path(base) / "dcmd-filetypes-highlight"
+    elif IS_MACOS:
+        return Path.home() / "Library" / "Application Support" / "dcmd-filetypes-highlight"
+    else:
+        xdg_state = os.environ.get("XDG_STATE_HOME", "").strip()
+        base = Path(xdg_state).expanduser() if xdg_state else Path.home() / ".local" / "state"
+        return base / "dcmd-filetypes-highlight"
+    return SCRIPT_DIR
 
 
 STATE_DIR = _default_state_dir()

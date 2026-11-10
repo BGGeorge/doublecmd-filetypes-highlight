@@ -152,7 +152,7 @@ sudo pacman -S curl
 | 命令入口 | `~/.local/bin/dcmd-hl`、`~/.local/bin/dcmd-hl-gui` |
 | 桌面菜单 | `~/.local/share/applications/dcmd-filetypes-highlight.desktop` |
 | 图标 | `~/.local/share/icons/hicolor/scalable/apps/dcmd-filetypes-highlight.svg` |
-| 安装记录 | 程序目录下的 `installed.json`（如果程序目录可写），否则 `~/.local/state/dcmd-filetypes-highlight/` |
+| 安装记录 | 用户级安装：程序目录下的 `installed.json`；系统级包（`.deb` / `.rpm`）或程序目录不可写：`~/.local/state/dcmd-filetypes-highlight/`（遵循 `XDG_STATE_HOME`） |
 | DC 原配置备份 | 与 `colors.json` / `doublecmd.xml` 同目录，文件名含 `.fth-backup-时间` |
 
 安装过程中会自动探测 DC 配置目录，并在写入前备份原文件。你可以随时用 `dcmd-hl uninstall` 移除规则，或用备份还原。
@@ -635,7 +635,7 @@ dcmd-hl install -c "/home/you/.var/app/<AppID>/config/doublecmd"
 | 命令 | `~/.local/bin/dcmd-hl`、`~/.local/bin/dcmd-hl-gui` |
 | 桌面菜单 | `~/.local/share/applications/dcmd-filetypes-highlight.desktop` |
 | 图标 | `~/.local/share/icons/hicolor/scalable/apps/dcmd-filetypes-highlight.svg` |
-| 状态/安装记录 | 程序目录下 `installed.json`，或 `~/.local/state/dcmd-filetypes-highlight/` |
+| 状态/安装记录 | 用户级安装：程序目录下 `installed.json`；系统级包：`~/.local/state/dcmd-filetypes-highlight/`（不会写进 `/usr/lib`） |
 | DC 配置 | `~/.config/doublecmd/colors.json`（1.1+）或 `doublecmd.xml`（1.0.x） |
 | DC 配置备份 | 同目录，`*.fth-backup-*` |
 
