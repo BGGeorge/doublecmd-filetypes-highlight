@@ -9,10 +9,12 @@
 * **便携版 / 安装版**都支持：装错位置或找不到目录时，可把 DC 程序文件夹 / `settings` 文件夹 / `doublecmd.exe` **拖进窗口**，或弹出文件夹选择框
 * **自动备份**：改动前自动备份 DC 配置文件，可一键卸载 / 还原，不影响你自己的其它规则
 * 附带**图形界面**（改颜色、调顺序、启停分类）与**命令行**（含“扩展名扫描查漏补缺”），全部中文
-* 兼容 **Windows 7 SP1 / 8 / 8.1 / 10 / 11**（`win64` 包用于 64 位系统，`win32` 包用于 32 位系统）；兼容 **DC 1.1.x**（`colors.json`）与 **DC 1.0.x**（`doublecmd.xml`）
+* 兼容 **Windows 7 SP1 / 8 / 8.1 / 10 / 11**（`win64` 包用于 64 位系统，`win32` 包用于 32 位系统）；兼容 **DC 1.0.x**（`doublecmd.xml`）与 **DC 1.1.x / 1.2.x**（`colors.json`）
 
 > 本工具包的位数与你的 Double Commander 位数**无关**（32/64 位 DC 都可用），只看你的 Windows 是 32 还是 64 位。
 > 若不慎下错包：`install.cmd` 会在 32 位系统上明确提示改用 `win32` 包（win32 包在 64 位系统上可正常使用）。
+>
+> **Linux 用户**：请到 Releases 下载 `dcmd-filetypes-highlight-<版本>-linux.tar.gz`、`.deb` 或 `.rpm`，并参考仓库中的 `docs/Linux安装教程.md`。本 README 描述的是 Windows 安装包。
 
 > 说明：DC 的 5 类插件（WCX/WDX/WFX/WLX/DSX）都没有“给面板文件名重新着色”的接口，所以本包采用与 DC 设置对话框完全相同的机制——把“文件类型颜色”规则写进 DC 自己的配置文件。不改 DC 一行源码，安装后照样能在 DC 选项里手工微调。
 
@@ -111,7 +113,7 @@ dcmd_hl_cli.exe restore colors.json.fth-backup-20261018-132204 -y   :: 整文件
 | 项目 | 支持范围 |
 | --- | --- |
 | Windows | 7 SP1 / 8 / 8.1 / 10 / 11；`win64` 包用于 **64 位**系统，`win32` 包用于 **32 位**系统（也可用 `python-src\` 里的源码，装 Python 3.8+ 运行） |
-| Double Commander | 1.1.x（实测 1.1.32）与 1.0.x；便携版 / 安装版均可；32 / 64 位 DC 均可 |
+| Double Commander | 1.0.x（`doublecmd.xml`）与 1.1.x / 1.2.x（`colors.json`）；便携版 / 安装版均可；32 / 64 位 DC 均可 |
 | 依赖 | 无。`dcmd_hl_cli.exe` / `dcmd_hl_gui.exe` 已内置 Python 3.8 运行时 |
 
 * **Win7**：需已安装 SP1 与常规系统更新（Universal C Runtime）。首次运行若出现“Windows 已保护你的电脑”（SmartScreen），点“更多信息 → 仍要运行”即可；个别杀软可能对单文件 exe 提示，放行即可（源码在 `python-src\`，可自行审查）。
@@ -143,7 +145,7 @@ DC 退出时会把内存中的设置写回配置文件，覆盖你的修改。�
 ## 七、目录结构
 
 ```
-dcmd-filetypes-highlight-1.0.1-win64\   （32 位系统会得到 -win32\ 包）
+dcmd-filetypes-highlight-1.1.0-win64\   （32 位系统会得到 -win32\ 包）
 ├─ install.cmd               一键安装（双击即用；可带参数、支持拖拽 DC 文件夹定位）
 ├─ pick-folder.ps1           文件夹选择对话框（install.cmd 在探测不到时调用）
 ├─ arch.txt                  包位数标记（win64 / win32；装错包时 install.cmd 会提示）

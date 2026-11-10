@@ -1,0 +1,200 @@
+name: Linux packages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "rules/**"
+      - "packaging/linux/**"
+      - "docs/Linux安装教程.md"
+      - ".github/workflows/linux-ci.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "rules/**"
+      - "packaging/linux/**"
+      - ".github/workflows/linux-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ubuntu:
+    name: Ubuntu · tar.gz + .deb + install.sh
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk desktop-file-utils shellcheck fakeroot
+          curl -fsSL https://github.com/goreleaser/nfpm/releases/download/v2.48.0/nfpm_2.48.0_Linux_x86_64.tar.gz \
+            | sudo tar -xz -C /usr/local/bin nfpm
+          sudo chmod 755 /usr/local/bin/nfpm
+          nfpm --version
+
+      - name: Python tests
+        run: python3 packaging/linux/tests/test_linux.py -v
+
+      - name: Shell syntax and ShellCheck
+        run: |
+          sh packaging/linux/tests/check_scripts.sh
+          shellcheck -s sh -S warning \
+            packaging/linux/install.sh \
+            packaging/linux/install-linux.sh.in \
+            packaging/linux/system/dcmd-hl \
+            packaging/linux/system/dcmd-hl-gui \
+            packaging/linux/system/postinstall.sh \
+            packaging/linux/system/postremove.sh \
+            packaging/linux/tests/check_scripts.sh \
+            src/dcmd_hl_cli.sh \
+            src/dcmd_hl_gui.sh
+
+      - name: Build packages
+        run: python3 packaging/linux/build_linux.py --nfpm nfpm --out dist --keep-stage
+
+      - name: Validate package contents
+        run: |
+          set -eux
+          ls -l dist
+          cd dist
+          sha256sum -c SHA256SUMS
+          cd ..
+          desktop-file-validate dist/_stage/system/usr/share/applications/dcmd-filetypes-highlight.desktop
+          dpkg-deb --field dist/*.deb Package Version Architecture Depends Recommends
+          dpkg-deb --contents dist/*.deb | grep -E 'usr/bin/dcmd-hl|usr/lib/dcmd-filetypes-highlight/src/dcmd_hl.py|usr/share/applications/dcmd-filetypes-highlight.desktop'
+          test "$(dpkg-deb --field dist/*.deb Architecture)" = "all"
+          test "$(dpkg-deb --field dist/*.deb Package)" = "dcmd-filetypes-highlight"
+          grep -q '^#!/usr/bin/env sh' dist/install-linux.sh
+          grep -q 'VERSION="1.1.0"' dist/install-linux.sh
+          sh -n dist/install-linux.sh
+
+      - name: Test tar.gz installer in a fake home
+        run: |
+          set -eux
+          VERSION=$(python3 -c "import re,pathlib; print(re.search(r'TOOL_VERSION = \"([^\"]+)\"', pathlib.Path('src/dcmd_hl.py').read_text(encoding='utf-8')).group(1))")
+          tar -xzf "dist/dcmd-filetypes-highlight-$VERSION-linux.tar.gz" -C "$RUNNER_TEMP"
+          PKG="$RUNNER_TEMP/dcmd-filetypes-highlight-$VERSION-linux"
+          HOME_DIR="$RUNNER_TEMP/home"
+          rm -rf "$HOME_DIR"
+          mkdir -p "$HOME_DIR/.config/doublecmd"
+          printf '{}\n' > "$HOME_DIR/.config/doublecmd/colors.json"
+
+          HOME="$HOME_DIR" bash "$PKG/install.sh" -c "$HOME_DIR/.config/doublecmd"
+          test -f "$HOME_DIR/.local/share/dcmd-filetypes-highlight/src/dcmd_hl.py"
+          test -f "$HOME_DIR/.local/bin/dcmd-hl"
+          grep -q FileColors "$HOME_DIR/.config/doublecmd/colors.json"
+          HOME="$HOME_DIR" "$HOME_DIR/.local/bin/dcmd-hl" --version
+          HOME="$HOME_DIR" "$HOME_DIR/.local/bin/dcmd-hl" status -c "$HOME_DIR/.config/doublecmd"
+          HOME="$HOME_DIR" "$HOME_DIR/.local/bin/dcmd-hl" install -c "$HOME_DIR/.config/doublecmd" --only archives,images
+          HOME="$HOME_DIR" "$HOME_DIR/.local/bin/dcmd-hl" uninstall -c "$HOME_DIR/.config/doublecmd"
+          HOME="$HOME_DIR" bash "$PKG/install.sh" --uninstall --purge -c "$HOME_DIR/.config/doublecmd"
+          test ! -e "$HOME_DIR/.local/share/dcmd-filetypes-highlight"
+          test ! -e "$HOME_DIR/.local/bin/dcmd-hl"
+
+      - name: Test .deb install and removal
+        run: |
+          set -eux
+          sudo apt-get install -y ./dist/*.deb
+          dcmd-hl --version
+          test -f /usr/lib/dcmd-filetypes-highlight/src/dcmd_hl.py
+          test -f /usr/share/applications/dcmd-filetypes-highlight.desktop
+          test -f /usr/share/icons/hicolor/scalable/apps/dcmd-filetypes-highlight.svg
+          test ! -e /root/.config/doublecmd
+          sudo apt-get remove -y dcmd-filetypes-highlight
+          test ! -e /usr/bin/dcmd-hl
+          test ! -e /usr/lib/dcmd-filetypes-highlight
+
+      - name: Upload Linux packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: |
+            dist/*.tar.gz
+            dist/*.deb
+            dist/*.rpm
+            dist/install-linux.sh
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+  fedora:
+    name: Fedora · .rpm + tar.gz
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - name: Install base tools
+        run: dnf install -y git nodejs tar gzip curl findutils which python3 python3-tkinter desktop-file-utils shadow-utils
+
+      - uses: actions/checkout@v4
+
+      - name: Install nfpm
+        run: |
+          curl -fsSL https://github.com/goreleaser/nfpm/releases/download/v2.48.0/nfpm_2.48.0_Linux_x86_64.tar.gz \
+            | tar -xz -C /usr/local/bin nfpm
+          chmod 755 /usr/local/bin/nfpm
+          nfpm --version
+
+      - name: Python tests
+        run: python3 packaging/linux/tests/test_linux.py -v
+
+      - name: Build rpm and tar.gz
+        run: python3 packaging/linux/build_linux.py --nfpm /usr/local/bin/nfpm --out dist --no-deb --keep-stage
+
+      - name: Validate rpm metadata
+        run: |
+          set -eux
+          rpm -qip dist/*.rpm
+          rpm -qlp dist/*.rpm
+          rpm -qp --scripts dist/*.rpm
+          rpm -qp --requires dist/*.rpm
+          rpm -qp --provides dist/*.rpm
+          test "$(rpm -qp --queryformat '%{ARCH}' dist/*.rpm)" = "noarch"
+          test "$(rpm -qp --queryformat '%{NAME}' dist/*.rpm)" = "dcmd-filetypes-highlight"
+          desktop-file-validate dist/_stage/system/usr/share/applications/dcmd-filetypes-highlight.desktop
+
+      - name: Test rpm install and removal
+        run: |
+          set -eux
+          dnf install -y --nogpgcheck ./dist/*.rpm
+          dcmd-hl --version
+          test -f /usr/lib/dcmd-filetypes-highlight/src/dcmd_hl.py
+          test -f /usr/share/applications/dcmd-filetypes-highlight.desktop
+          test ! -e /root/.config/doublecmd
+
+          mkdir -p /tmp/fedora-dc
+          printf '{}\n' > /tmp/fedora-dc/colors.json
+          dcmd-hl install -c /tmp/fedora-dc
+          grep -q FileColors /tmp/fedora-dc/colors.json
+          dcmd-hl status -c /tmp/fedora-dc
+          dcmd-hl uninstall -c /tmp/fedora-dc
+
+          dnf remove -y dcmd-filetypes-highlight
+          test ! -e /usr/bin/dcmd-hl
+          test ! -e /usr/lib/dcmd-filetypes-highlight
+
+      - name: Test tar.gz installer as a normal user
+        run: |
+          set -eux
+          VERSION=$(python3 -c "import re,pathlib; print(re.search(r'TOOL_VERSION = \"([^\"]+)\"', pathlib.Path('src/dcmd_hl.py').read_text(encoding='utf-8')).group(1))")
+          rm -rf /tmp/dcmd-tar
+          mkdir -p /tmp/dcmd-tar
+          tar -xzf "dist/dcmd-filetypes-highlight-$VERSION-linux.tar.gz" -C /tmp/dcmd-tar
+          PKG="/tmp/dcmd-tar/dcmd-filetypes-highlight-$VERSION-linux"
+
+          useradd -m tester
+          install -d -o tester -g tester /home/tester/.config/doublecmd
+          printf '{}\n' > /home/tester/.config/doublecmd/colors.json
+          chown tester:tester /home/tester/.config/doublecmd/colors.json
+          chmod -R a+rX /tmp/dcmd-tar
+
+          su - tester -c "HOME=/home/tester bash '$PKG/install.sh' -c /home/tester/.config/doublecmd"
+          test -f /home/tester/.local/share/dcmd-filetypes-highlight/src/dcmd_hl.py
+          grep -q FileColors /home/tester/.config/doublecmd/colors.json
+          su - tester -c '/home/tester/.local/bin/dcmd-hl --version'
+          su - tester -c '/home/tester/.local/bin/dcmd-hl status -c /home/tester/.config/doublecmd'
+          su - tester -c "HOME=/home/tester bash '$PKG/install.sh' --uninstall --purge -c /home/tester/.config/doublecmd"
+          test ! -e /home/tester/.local/share/dcmd-filetypes-highlight
+          test ! -e /home/tester/.local/bin/dcmd-hl

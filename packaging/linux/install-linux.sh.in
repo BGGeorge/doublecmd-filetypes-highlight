@@ -1,0 +1,103 @@
+#!/usr/bin/env sh
+# ============================================================================
+#  Double Commander 文件类型高亮 · Linux 在线安装器
+#
+#  用法（推荐）：
+#    curl -fsSL https://github.com/BGGeorge/doublecmd-filetypes-highlight/releases/latest/download/install-linux.sh | bash
+#
+#  也可以先下载再运行：
+#    curl -fLO https://github.com/BGGeorge/doublecmd-filetypes-highlight/releases/latest/download/install-linux.sh
+#    sh install-linux.sh
+#
+#  所有参数都会原样传给 install.sh，例如：
+#    sh install-linux.sh --dry-run
+#    sh install-linux.sh -c "$HOME/.config/doublecmd"
+#    sh install-linux.sh --no-config
+# ============================================================================
+set -eu
+
+VERSION="@VERSION@"
+REPO="BGGeorge/doublecmd-filetypes-highlight"
+BASE="https://github.com/$REPO/releases/download/v$VERSION"
+TAR="dcmd-filetypes-highlight-$VERSION-linux.tar.gz"
+SUMS="SHA256SUMS"
+
+case "${1:-}" in
+    -h|--help)
+        sed -n '2,20p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//' || true
+        exit 0
+        ;;
+    --version)
+        echo "Double Commander 文件类型高亮 Linux 安装器 $VERSION"
+        exit 0
+        ;;
+esac
+
+if command -v curl >/dev/null 2>&1; then
+    download() { curl -fL --retry 3 --connect-timeout 20 -o "$2" "$1"; }
+elif command -v wget >/dev/null 2>&1; then
+    download() { wget -O "$2" "$1"; }
+else
+    echo "错误：需要 curl 或 wget 下载安装包。" >&2
+    echo "      Ubuntu/Debian: sudo apt install curl" >&2
+    echo "      Fedora/RHEL:   sudo dnf install curl" >&2
+    exit 1
+fi
+
+if [ "$(id -u)" -eq 0 ]; then
+    echo "错误：请不要用 sudo / root 运行；DC 配置属于当前桌面用户。" >&2
+    exit 1
+fi
+
+if [ "$(uname -s 2>/dev/null || echo unknown)" != "Linux" ]; then
+    echo "错误：本安装器用于 Linux。" >&2
+    exit 1
+fi
+
+TMP=$(mktemp -d 2>/dev/null || mktemp -d -t dcmd-hl.XXXXXX)
+trap 'rm -rf "$TMP"' EXIT HUP INT TERM
+
+echo "============================================================"
+echo "  Double Commander 文件类型高亮 · Linux 在线安装"
+echo "  版本: $VERSION"
+echo "============================================================"
+echo "  下载: $BASE/$TAR"
+echo
+
+if ! download "$BASE/$TAR" "$TMP/$TAR"; then
+    echo "下载失败。请检查网络，或手动打开上面的 Release 页面下载 tar.gz。" >&2
+    exit 1
+fi
+
+# SHA256 校验（有 sha256sum / shasum 时执行；没有则给出提示）
+if download "$BASE/$SUMS" "$TMP/$SUMS" 2>/dev/null; then
+    if command -v sha256sum >/dev/null 2>&1; then
+        if ! (cd "$TMP" && grep "  $TAR\$" "$SUMS" | sha256sum -c -); then
+            echo "错误：安装包 SHA256 校验失败，已停止。" >&2
+            exit 1
+        fi
+    elif command -v shasum >/dev/null 2>&1; then
+        expected=$(grep "  $TAR\$" "$TMP/$SUMS" | awk '{print $1}')
+        actual=$(shasum -a 256 "$TMP/$TAR" | awk '{print $1}')
+        if [ "$expected" != "$actual" ]; then
+            echo "错误：安装包 SHA256 校验失败，已停止。" >&2
+            exit 1
+        fi
+    else
+        echo "提示：系统没有 sha256sum/shasum，跳过校验。"
+    fi
+else
+    echo "提示：没有下载到 SHA256SUMS，跳过校验。"
+fi
+
+tar -xzf "$TMP/$TAR" -C "$TMP"
+PKG="$TMP/dcmd-filetypes-highlight-$VERSION-linux"
+if [ ! -f "$PKG/install.sh" ]; then
+    echo "错误：安装包结构异常，找不到 install.sh。" >&2
+    exit 1
+fi
+
+echo
+echo "开始安装（安装过程可能需要输入一次回车确认 DC 配置目录）："
+echo
+sh "$PKG/install.sh" "$@"

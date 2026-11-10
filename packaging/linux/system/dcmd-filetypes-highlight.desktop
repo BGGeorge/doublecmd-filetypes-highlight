@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Double Commander 文件类型高亮
+Name[en]=Double Commander File Type Highlight
+GenericName=File Type Highlighter
+GenericName[zh_CN]=文件类型高亮
+Comment=为 Double Commander 文件名按类型着色（写入 DC 原生的“文件类型颜色”配置）
+Comment[en]=Native file-type colors for Double Commander
+Exec=/usr/bin/dcmd-hl-gui
+TryExec=/usr/bin/dcmd-hl-gui
+Icon=dcmd-filetypes-highlight
+Terminal=false
+Categories=Utility;FileManager;
+Keywords=doublecmd;highlight;color;filetype;mask;
+StartupNotify=true

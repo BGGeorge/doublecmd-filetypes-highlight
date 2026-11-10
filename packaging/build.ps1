@@ -16,15 +16,15 @@
 
 .EXAMPLE
     python -m pip install pyinstaller==4.10
-    powershell -ExecutionPolicy Bypass -File packaging\build.ps1 -Python "C:\Python38-x64\python.exe" -Arch win64 -Version 1.0.1
-    powershell -ExecutionPolicy Bypass -File packaging\build.ps1 -Python "C:\Python38-x86\python.exe" -Arch win32 -Version 1.0.1
+    powershell -ExecutionPolicy Bypass -File packaging\build.ps1 -Python "C:\Python38-x64\python.exe" -Arch win64 -Version 1.1.0
+    powershell -ExecutionPolicy Bypass -File packaging\build.ps1 -Python "C:\Python38-x86\python.exe" -Arch win32 -Version 1.1.0
 
 .NOTES
     输出目录默认为 <仓库>/_dist/（已在 .gitignore 中忽略）。
 #>
 param(
     [string]$Python = "python",
-    [string]$Version = "1.0.1",
+    [string]$Version = "1.1.0",
     [ValidateSet("win64", "win32")]
     [string]$Arch = "win64",
     [string]$OutDir = ""

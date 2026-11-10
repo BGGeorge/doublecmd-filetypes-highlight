@@ -4,6 +4,7 @@
 dcmd_hl_gui.py —— Double Commander「文件类型高亮」图形管理器
 
 依赖：Python 3.8+（自带 tkinter），无需安装第三方库。
+Windows / Linux / macOS 均可运行；Linux 需要 python3-tk（Ubuntu/Debian）或 python3-tkinter（Fedora）。
 命令行参数（均可省略）：
     -c / --config-dir DIR   DC 配置目录（默认自动探测，便携版会从运行中的进程定位）
     --rules FILE            规则包文件（默认 rules/default_rules.json）
@@ -21,6 +22,8 @@ import argparse
 import copy
 import json
 import os
+import shutil
+import subprocess
 import sys
 import time
 import webbrowser
@@ -57,9 +60,14 @@ def _open_in_explorer(path: Path) -> None:
         if sys.platform == "win32":
             os.startfile(str(path))  # type: ignore[attr-defined]
         elif sys.platform == "darwin":
-            os.system(f'open "{path}"')
+            subprocess.Popen(["open", str(path)])
         else:
-            os.system(f'xdg-open "{path}" &')
+            opener = "xdg-open"
+            if not shutil.which(opener):
+                opener = "gio"
+                subprocess.Popen([opener, "open", str(path)])
+            else:
+                subprocess.Popen([opener, str(path)])
     except Exception as exc:
         messagebox.showerror(APP_TITLE, f"无法打开目录：\n{exc}")
 
@@ -93,17 +101,31 @@ class HighlighterApp(tk.Tk):
 
     def _make_fonts(self) -> None:
         families = set(tkfont.families(self))
-        family = "Microsoft YaHei UI" if "Microsoft YaHei UI" in families else (
-            "Microsoft YaHei" if "Microsoft YaHei" in families else "Segoe UI"
-        )
+        if sys.platform == "win32":
+            candidates = ["Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", "Arial"]
+            mono_candidates = ["Consolas", "Courier New"]
+        elif sys.platform == "darwin":
+            candidates = ["PingFang SC", "Hiragino Sans GB", "Helvetica Neue", "Arial"]
+            mono_candidates = ["Menlo", "Monaco", "Courier New"]
+        else:
+            candidates = [
+                "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC",
+                "WenQuanYi Micro Hei", "WenQuanYi Zen Hei", "DejaVu Sans", "Arial",
+            ]
+            mono_candidates = ["DejaVu Sans Mono", "Noto Sans Mono", "Liberation Mono", "Courier New"]
+        family = next((name for name in candidates if name in families), candidates[-1])
+        mono = next((name for name in mono_candidates if name in families), mono_candidates[-1])
         self.font_ui = (family, 9)
         self.font_ui_bold = (family, 9, "bold")
         self.font_title = (family, 10, "bold")
-        self.font_mono = ("Consolas" if "Consolas" in families else "Courier New", 12)
+        self.font_mono = (mono, 12)
         self.option_add("*Font", self.font_ui)
         style = ttk.Style(self)
         try:
-            style.theme_use("vista" if sys.platform == "win32" else style.theme_use())
+            if sys.platform == "win32":
+                style.theme_use("vista")
+            elif sys.platform.startswith("linux"):
+                style.theme_use("clam")
         except Exception:
             pass
         style.configure("Treeview", font=self.font_ui, rowheight=22)
@@ -418,14 +440,22 @@ class HighlighterApp(tk.Tk):
         if cfg is None:
             self.var_cfg.set("")
             if not silent:
+                if sys.platform == "win32":
+                    install_path = "%APPDATA%\\doublecmd"
+                    exe_name = "doublecmd.exe"
+                    portable_hint = "<程序目录>\\settings"
+                else:
+                    install_path = "~/.config/doublecmd"
+                    exe_name = "doublecmd"
+                    portable_hint = "<程序目录>/settings"
                 messagebox.showwarning(
                     APP_TITLE,
                     "未能自动找到 Double Commander 配置目录。\n\n"
                     "可以把下面任意一种路径填进“配置目录”（或点『浏览…』选择），\n"
                     "工具会自动定位到真正的配置目录：\n"
-                    "  · 便携版：DC 程序目录（含 doublecmd.exe），配置一般是 <程序目录>\\settings\n"
-                    "  · 安装版：%APPDATA%\\doublecmd\n"
-                    "  · 也可以直接填 doublecmd.exe 的路径",
+                    f"  · 便携版：DC 程序目录（含 {exe_name}），配置一般是 {portable_hint}\n"
+                    f"  · 安装版：{install_path}\n"
+                    f"  · 也可以直接填 {exe_name} 的路径",
                 )
         else:
             self.var_cfg.set(str(cfg))
@@ -469,8 +499,9 @@ class HighlighterApp(tk.Tk):
                 self.var_cfg.set(str(resolved))
                 self._set_status(f"已自动定位到配置目录: {resolved}")
         if not cfg or not cfg.is_dir():
+            portable = "<程序目录>\\settings" if sys.platform == "win32" else "<程序目录>/settings"
             self.lbl_cfg_state.configure(
-                text="⚠ 配置目录无效：请选择 DC 的配置目录（便携版一般为 <程序目录>\\settings）",
+                text=f"⚠ 配置目录无效：请选择 DC 的配置目录（便携版一般为 {portable}）",
                 foreground="#c07500")
             return
         state = dcmd_hl.config_files_state(cfg)

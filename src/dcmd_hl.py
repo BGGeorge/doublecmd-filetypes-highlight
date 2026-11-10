@@ -15,8 +15,9 @@ dcmd_hl.py —— Double Commander「文件类型高亮」规则管理器
       DC 1.0.x 保存在 doublecmd.xml 的 <Colors><FileFilters><Filter> 节点中。
 
 兼容性：
-    * DC 1.1.x：colors.json（浅色/深色主题颜色分别保存）
+    * DC 1.1.x / 1.2.x：colors.json（浅色/深色主题颜色分别保存）
     * DC 1.0.x：doublecmd.xml（单一颜色，使用规则包中的浅色值）
+    * 系统：Windows 7 SP1+、Linux（Ubuntu / Debian / Fedora / RHEL / openSUSE / Arch 等）、macOS
     * 运行环境：Python 3.8+（仅管理工具需要，DC 本身不需要 Python）
 
 用法示例（详见 README.md）：
@@ -29,7 +30,7 @@ dcmd_hl.py —— Double Commander「文件类型高亮」规则管理器
     python dcmd_hl.py preview                 # 生成 preview.html 预览
     python dcmd_hl.py backups                 # 列出备份
     python dcmd_hl.py restore <备份文件>      # 恢复备份
-    python dcmd_hl.py menu                    # 交互式中文菜单（双击 dcmd_hl_cli.cmd 同样效果）
+    python dcmd_hl.py menu                    # 交互式中文菜单（Windows 双击 dcmd_hl_cli.cmd；Linux 运行 dcmd_hl_cli.sh）
     python dcmd_hl.py scan D:\\Media --apply --install   # 扫描目录扩展名，自动归类补全规则并安装
 """
 
@@ -53,7 +54,60 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 TOOL_NAME = "doublecmd-filetype-highlight"
-TOOL_VERSION = "1.0.1"
+TOOL_VERSION = "1.1.0"
+
+IS_WINDOWS = sys.platform == "win32"
+IS_MACOS = sys.platform == "darwin"
+IS_LINUX = sys.platform.startswith("linux")
+
+# Linux 发行版里的可执行文件名可能是 doublecmd / doublecmd-gtk / doublecmd-qt 等。
+DC_EXE_NAMES = (
+    "doublecmd.exe",
+    "doublecmd",
+    "doublecmd-gtk",
+    "doublecmd-gtk2",
+    "doublecmd-qt",
+    "doublecmd-qt5",
+    "doublecmd-qt6",
+)
+
+
+def dc_exe_display() -> str:
+    """用户提示里显示的可执行文件名（按当前平台）。"""
+    return "doublecmd.exe" if IS_WINDOWS else "doublecmd"
+
+
+def is_dc_exe_name(name: str) -> bool:
+    """判断文件名是否像 Double Commander 主程序（大小写不敏感）。
+
+    只接受已知名称，或 doublecmd / doublecmd-<变体>；
+    排除 doublecmd.help、doublecmd.desktop 之类的非可执行文件。
+    """
+    lowered = name.casefold()
+    if lowered in DC_EXE_NAMES:
+        return True
+    if "." in lowered:
+        return False
+    return re.fullmatch(r"doublecmd(?:-(?:gtk|qt)[0-9]*)?", lowered) is not None
+
+
+def find_dc_exe(directory: Path) -> Path | None:
+    """在目录里找 DC 主程序；Linux 上兼容 doublecmd-gtk / doublecmd-qt 等名称。"""
+    if not directory.is_dir():
+        return None
+    for name in DC_EXE_NAMES:
+        candidate = directory / name
+        if candidate.is_file():
+            return candidate
+    # Linux 文件名区分大小写；再做一次大小写不敏感扫描兜底
+    try:
+        for entry in os.scandir(directory):
+            if entry.is_file(follow_symlinks=True) and is_dc_exe_name(entry.name):
+                return Path(entry.path)
+    except OSError:
+        pass
+    return None
+
 
 def _app_dir() -> Path:
     """脚本所在目录；打包成 exe（PyInstaller 冻结）时用 exe 所在目录。"""
@@ -78,9 +132,9 @@ TMP_SUFFIX = ".fth-tmp"
 
 
 def _default_state_dir() -> Path:
-    """安装记录目录：环境变量 DCMD_HL_STATE_DIR > 程序目录（可写时）> %LOCALAPPDATA%。
+    """安装记录目录：环境变量 DCMD_HL_STATE_DIR > 程序目录（可写时）> 用户状态目录。
 
-    程序目录只读（例如放在 Program Files）或需要独立测试记录时自动换位置。
+    程序目录只读（例如 /usr/lib、Program Files）或需要独立测试记录时自动换位置。
     """
     override = os.environ.get("DCMD_HL_STATE_DIR", "").strip()
     if override:
@@ -91,9 +145,16 @@ def _default_state_dir() -> Path:
         probe.unlink()
         return SCRIPT_DIR
     except OSError:
-        base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
-        if base:
-            return Path(base) / "dcmd-filetypes-highlight"
+        if IS_WINDOWS:
+            base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA")
+            if base:
+                return Path(base) / "dcmd-filetypes-highlight"
+        elif IS_MACOS:
+            return Path.home() / "Library" / "Application Support" / "dcmd-filetypes-highlight"
+        else:
+            xdg_state = os.environ.get("XDG_STATE_HOME", "").strip()
+            base = Path(xdg_state).expanduser() if xdg_state else Path.home() / ".local" / "state"
+            return base / "dcmd-filetypes-highlight"
         return SCRIPT_DIR
 
 
@@ -291,9 +352,9 @@ def _strip_quotes(value) -> str:
 def resolve_path_hint(raw) -> tuple[str, Path, str]:
     """
     把用户给的路径（拖拽/粘贴常见）归类：
-      文件                    → 按 DC 可执行文件处理
-      含 doublecmd.exe 的目录  → 按 DC 程序目录处理
-      settings 目录 / 配置目录 → 按配置目录处理
+      文件                         → 按 DC 可执行文件处理
+      含 doublecmd(.exe) 的目录    → 按 DC 程序目录处理
+      settings 目录 / 配置目录      → 按配置目录处理
     返回 (kind, path, note)；kind: "exe" / "config" / "missing"。
     """
     path = _norm(_strip_quotes(raw))
@@ -305,13 +366,13 @@ def resolve_path_hint(raw) -> tuple[str, Path, str]:
     if looks_like_config_dir(path):
         return "config", path, f"按 DC 配置目录处理: {path}"
 
-    exe = path / "doublecmd.exe"
-    if exe.is_file():
+    exe = find_dc_exe(path)
+    if exe is not None:
         return "exe", exe, f"按 DC 程序目录处理: {path}"
 
     settings = path / "settings"
     if looks_like_config_dir(settings):
-        return "config", settings, f"按 <程序目录>\\settings 处理: {path}"
+        return "config", settings, f"按 <程序目录>/settings 处理: {path}"
 
     return "config", path, f"按配置目录处理: {path}"
 
@@ -321,33 +382,55 @@ def platform_candidates() -> list[tuple[Path, str]]:
     result: list[tuple[Path, str]] = []
 
     for env_name in ("DC_CONFIG_PATH", "COMMANDER_INI_PATH"):
-        value = os.environ.get(env_name)
+        value = os.environ.get(env_name, "").strip()
         if value:
-            result.append((_norm(value), f"环境变量 {env_name}（从 DC 内启动）"))
+            result.append((_norm(Path(value).expanduser()), f"环境变量 {env_name}（从 DC 内启动）"))
 
-    if sys.platform == "win32":
+    if IS_WINDOWS:
         appdata = os.environ.get("APPDATA")
         if appdata:
             result.append((_norm(Path(appdata) / "doublecmd"), "Windows %APPDATA%\\doublecmd"))
         local = os.environ.get("LOCALAPPDATA")
         if local:
             result.append((_norm(Path(local) / "doublecmd"), "Windows %LOCALAPPDATA%\\doublecmd（一般不用）"))
-    elif sys.platform == "darwin":
+    elif IS_MACOS:
         result.append((_norm(Path.home() / "Library" / "Preferences" / "doublecmd"), "macOS ~/Library/Preferences/doublecmd"))
     else:
-        xdg = os.environ.get("XDG_CONFIG_HOME")
-        base = _norm(xdg) if xdg else Path.home() / ".config"
-        result.append((_norm(base / "doublecmd"), "Linux ~/.config/doublecmd"))
+        xdg = os.environ.get("XDG_CONFIG_HOME", "").strip()
+        base = Path(xdg).expanduser() if xdg else Path.home() / ".config"
+        result.append((_norm(base / "doublecmd"), "Linux ~/.config/doublecmd（XDG）"))
+
+        # Flatpak：配置在 ~/.var/app/<AppID>/config/doublecmd
+        var_app = Path.home() / ".var" / "app"
+        if var_app.is_dir():
+            try:
+                for child in sorted(var_app.iterdir()):
+                    if child.is_dir() and "doublecmd" in child.name.casefold():
+                        cfg = child / "config" / "doublecmd"
+                        result.append((_norm(cfg), f"Flatpak {child.name}"))
+            except OSError:
+                pass
+
+        # Snap：配置在 ~/snap/<name>/current/.config/doublecmd
+        snap = Path.home() / "snap"
+        if snap.is_dir():
+            try:
+                for child in sorted(snap.iterdir()):
+                    if child.is_dir() and "doublecmd" in child.name.casefold():
+                        cfg = child / "current" / ".config" / "doublecmd"
+                        result.append((_norm(cfg), f"Snap {child.name}"))
+            except OSError:
+                pass
     return result
 
 
 def common_install_executables() -> list[Path]:
-    """常见安装位置的 doublecmd.exe（Windows：每次启动时定位配置目录用）。"""
+    """常见安装位置的 DC 主程序（用于在 DC 未运行时定位配置目录）。"""
     result: list[Path] = []
     env_exe = os.environ.get("DCMD_EXE", "").strip()
     if env_exe:
-        result.append(_norm(env_exe))
-    if sys.platform == "win32":
+        result.append(_norm(Path(env_exe).expanduser()))
+    if IS_WINDOWS:
         for env_name in ("ProgramFiles", "ProgramFiles(x86)"):
             base = os.environ.get(env_name)
             if base:
@@ -358,6 +441,23 @@ def common_install_executables() -> list[Path]:
         which = shutil.which("doublecmd")
         if which:
             result.append(_norm(which))
+    elif IS_LINUX:
+        # PATH 里的命令（/usr/bin/doublecmd 通常是符号链接）
+        for name in ("doublecmd", "doublecmd-gtk", "doublecmd-qt", "doublecmd-qt6"):
+            which = shutil.which(name)
+            if which:
+                result.append(_norm(which))
+        # 常见系统目录 / 本地安装 / AppImage 解包目录
+        for path in (
+            Path("/usr/bin/doublecmd"),
+            Path("/usr/local/bin/doublecmd"),
+            Path("/opt/doublecmd/doublecmd"),
+            Path("/usr/lib/doublecmd/doublecmd"),
+            Path("/usr/lib64/doublecmd/doublecmd"),
+            Path("/usr/share/doublecmd/doublecmd"),
+            Path.home() / ".local" / "bin" / "doublecmd",
+        ):
+            result.append(_norm(path))
     return result
 
 
@@ -395,8 +495,8 @@ def nearby_candidates() -> list[tuple[Path, str]]:
             result.extend(exe_candidates(exe, prefix="附近发现"))
 
     for base in bases:
-        exe = base / "doublecmd.exe"
-        if exe.is_file():
+        exe = find_dc_exe(base)
+        if exe is not None:
             add_exe(exe)
         if base.is_dir() and looks_like_config_dir(base):
             add_dir(base, f"附近发现配置目录: {base}")
@@ -415,8 +515,8 @@ def nearby_candidates() -> list[tuple[Path, str]]:
                 if not is_dir or "doublecmd" not in entry.name.casefold():
                     continue
                 child = Path(entry.path)
-                child_exe = child / "doublecmd.exe"
-                if child_exe.is_file():
+                child_exe = find_dc_exe(child)
+                if child_exe is not None:
                     add_exe(child_exe)
                 elif looks_like_config_dir(child):
                     add_dir(child, f"附近发现配置目录: {child}")
@@ -433,8 +533,9 @@ def exe_candidates(exe_path, prefix: str = "") -> list[tuple[Path, str]]:
     """根据 DC 可执行文件位置给出候选配置目录（便携模式优先）。"""
     base = _norm(Path(exe_path)).parent
     label = f"{prefix}: {_norm(Path(exe_path))}" if prefix else ""
+    sep = "\\" if IS_WINDOWS else "/"
     return [
-        (base / "settings", f"便携模式 <程序目录>\\settings" + (f"（{label}）" if label else "")),
+        (base / "settings", f"便携模式 <程序目录>{sep}settings" + (f"（{label}）" if label else "")),
         (base, "可执行文件所在目录" + (f"（{label}）" if label else "")),
     ]
 
@@ -499,7 +600,7 @@ def running_dc_executables() -> list[Path]:
                     target = (entry / "exe").resolve(strict=True)
                 except (OSError, RuntimeError):
                     continue
-                if target.name.casefold().startswith("doublecmd"):
+                if is_dc_exe_name(target.name):
                     add(target)
     return result
 
@@ -539,7 +640,7 @@ def detect_config_dir(exe_path=None) -> tuple[Path | None, str, list[tuple]]:
     候选列表元素: (路径, 来源, 是否存在, 是否像 DC 配置目录)
 
     探测顺序：显式指定 → 运行中的 DC → 目录附近（便携版）→ 上次安装记录
-              → 常见安装位置 → 平台默认（%APPDATA% 等）。
+              → 常见安装位置 → 平台默认（Linux ~/.config、Windows %APPDATA% 等）。
     """
     checked: list[tuple] = []
     candidates: list[tuple[Path, str]] = []
@@ -570,8 +671,8 @@ def detect_config_dir(exe_path=None) -> tuple[Path | None, str, list[tuple]]:
         if looks:
             return cfg_dir, source, checked
     for cfg_dir, source, exists, _ in checked:
-        # DC 程序目录本身不是配置目录（便携模式的配置在 <程序目录>\settings）
-        if exists and not (cfg_dir / "doublecmd.exe").is_file():
+        # DC 程序目录本身不是配置目录（便携模式的配置在 <程序目录>/settings）
+        if exists and find_dc_exe(cfg_dir) is None:
             return cfg_dir, source + "（目录存在但尚无 DC 配置文件）", checked
     return None, "", checked
 
@@ -947,6 +1048,12 @@ def write_json_atomic(path: Path, data: dict) -> None:
     tmp = path.with_name(path.name + TMP_SUFFIX)
     with open(tmp, "w", encoding="utf-8", newline="") as fh:
         fh.write(text)
+    if path.exists():
+        # Linux 下配置文件可能是 0600，原子替换时保留原权限
+        try:
+            shutil.copymode(path, tmp)
+        except OSError:
+            pass
     os.replace(tmp, path)
 
 
@@ -1066,6 +1173,11 @@ def merge_filters(container: ET.Element, rules: list[dict], owned: set[str]) -> 
 def write_xml_atomic(tree: ET.ElementTree, path: Path) -> None:
     tmp = path.with_name(path.name + TMP_SUFFIX)
     tree.write(tmp, encoding="utf-8", xml_declaration=True)
+    if path.exists():
+        try:
+            shutil.copymode(path, tmp)
+        except OSError:
+            pass
     os.replace(tmp, path)
 
 
@@ -1076,15 +1188,21 @@ def write_xml_atomic(tree: ET.ElementTree, path: Path) -> None:
 
 def doublecmd_running() -> bool:
     try:
-        if sys.platform == "win32":
+        if IS_WINDOWS:
             proc = subprocess.run(
                 ["tasklist", "/FI", "IMAGENAME eq doublecmd.exe", "/NH"],
                 capture_output=True,
                 timeout=15,
             )
             return b"doublecmd" in proc.stdout.lower()
-        proc = subprocess.run(["pgrep", "-f", "doublecmd"], capture_output=True, timeout=15)
-        return proc.returncode == 0
+        if IS_LINUX and running_dc_executables():
+            return True
+        # 不用 pgrep -f：会误匹配路径/命令行里含 doublecmd 的无关进程
+        for name in ("doublecmd", "doublecmd-gtk", "doublecmd-qt", "doublecmd-qt6"):
+            proc = subprocess.run(["pgrep", "-x", name], capture_output=True, timeout=15)
+            if proc.returncode == 0:
+                return True
+        return False
     except Exception:
         return False
 
@@ -1347,7 +1465,19 @@ _SCAN_SKIP_DIRS = {
     "$windows.~bt", "$windows.~ws", "recovery", "perflogs", "appdata",
     "node_modules", ".git", ".svn", ".hg", ".idea", ".vs", ".vscode",
     "__pycache__", ".tox", ".mypy_cache", ".pytest_cache",
+    # Linux / Unix 伪文件系统与系统目录
+    "proc", "sys", "dev", "run", "snap", "flatpak",
 }
+
+# 扫描根目录时直接按绝对路径跳过的 Linux 伪文件系统
+_SCAN_SKIP_PATHS = ("/proc", "/sys", "/dev", "/run", "/boot", "/lost+found")
+
+
+def _is_scan_skip_path(path: Path) -> bool:
+    if not IS_LINUX:
+        return False
+    text = str(path)
+    return any(text == prefix or text.startswith(prefix + os.sep) for prefix in _SCAN_SKIP_PATHS)
 
 _EXT_RE = re.compile(r"^\.[a-z0-9][a-z0-9_+\-]{0,15}$")
 
@@ -1724,6 +1854,8 @@ def scan_files(roots, time_limit: float | None = None, progress=None):
     stack = [_norm(r) for r in roots]
     while stack:
         current = stack.pop()
+        if _is_scan_skip_path(current):
+            continue
         try:
             st = os.stat(current)  # 跟随 junction/符号链接，用于去重防止环路
             key = (st.st_dev, st.st_ino)
@@ -1979,8 +2111,9 @@ def _cfg_not_found_error(checked: list[tuple]) -> RuleError:
         mark = "存在" if exists else "不存在"
         lines.append(f"  - {path} （{src}；{mark}）")
     lines.append(
-        "请用 -c/--config-dir 指定配置目录，或把 DC 程序目录 / settings 目录 / doublecmd.exe 直接作为\n"
-        "     参数传入（支持从资源管理器把文件夹或 doublecmd.exe 拖拽到命令行 / install.cmd 上）。"
+        "请用 -c/--config-dir 指定配置目录，或把 DC 程序目录 / settings 目录 / "
+        f"{dc_exe_display()} 直接作为\n"
+        "     参数传入（Windows 可以从资源管理器拖拽；Linux 可以直接把路径粘贴到终端）。"
     )
     return RuleError("\n".join(lines))
 
@@ -2090,7 +2223,7 @@ def cmd_detect(args) -> int:
         print(f"  - {path}  （{src}；{state}{flag}）")
     print()
     if cfg_dir is None:
-        print_warn("未找到可用配置目录。可用 -c/--config-dir 指定，或把 DC 程序目录 / doublecmd.exe / settings 目录直接作为参数传入。")
+        print_warn(f"未找到可用配置目录。可用 -c/--config-dir 指定，或把 DC 程序目录 / {dc_exe_display()} / settings 目录直接作为参数传入。")
         return 1
     state = config_files_state(cfg_dir)
     print_ok(f"将使用: {cfg_dir}")
@@ -2425,25 +2558,27 @@ def build_parser() -> argparse.ArgumentParser:
         description="Double Commander 文件类型高亮规则管理器（按扩展名给文件名着色）",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="示例:\n"
-        "  python dcmd_hl.py detect\n"
-        "  python dcmd_hl.py install --except video,fonts\n"
-        "  python dcmd_hl.py install --prepend --mode json\n"
-        "  python dcmd_hl.py install \"D:\\Tools\\doublecmd\"      便携版：直接给 DC 程序目录\n"
-        "  python dcmd_hl.py install \"D:\\Tools\\doublecmd\\doublecmd.exe\"\n"
-        "  python dcmd_hl.py status\n"
-        "  python dcmd_hl.py uninstall\n",
+        "  python3 dcmd_hl.py detect\n"
+        "  python3 dcmd_hl.py install --except video,fonts\n"
+        "  python3 dcmd_hl.py install --prepend --mode json\n"
+        "  python3 dcmd_hl.py install \"D:\\Tools\\doublecmd\"       Windows 便携版：程序目录\n"
+        "  python3 dcmd_hl.py install \"D:\\Tools\\doublecmd\\doublecmd.exe\"\n"
+        "  python3 dcmd_hl.py install ~/Applications/doublecmd    Linux 便携版：程序目录\n"
+        "  python3 dcmd_hl.py install -c ~/.config/doublecmd      Linux 安装版：配置目录\n"
+        "  python3 dcmd_hl.py status\n"
+        "  python3 dcmd_hl.py uninstall\n",
     )
     parser.add_argument("--version", action="version", version=f"{TOOL_NAME} {TOOL_VERSION}")
 
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("-c", "--config-dir",
-                        help="DC 配置目录（默认自动探测；也可用 DC_CONFIG_PATH 环境变量；给程序目录/doublecmd.exe 也会自动识别）")
-    common.add_argument("--exe", help="doublecmd.exe 路径（也可给 DC 程序目录或配置目录），用于推断便携模式的配置目录")
+                        help="DC 配置目录（默认自动探测；也可用 DC_CONFIG_PATH 环境变量；给程序目录/可执行文件也会自动识别）")
+    common.add_argument("--exe", help=f"{dc_exe_display()} 路径（也可给 DC 程序目录或配置目录），用于推断便携模式的配置目录")
     common.add_argument("--rules", default=str(DEFAULT_RULES_FILE), help=f"规则包文件（默认 {DEFAULT_RULES_FILE}）")
     common.add_argument("--only", help="只安装/处理这些分类（id 或名称，逗号分隔）")
     common.add_argument("--except", dest="except_", help="排除这些分类（id 或名称，逗号分隔）")
 
-    path_help = "可选：DC 程序目录、settings 目录或 doublecmd.exe 路径（支持从资源管理器拖拽到命令行上）"
+    path_help = f"可选：DC 程序目录、settings 目录或 {dc_exe_display()} 路径（Windows 支持拖拽；Linux 直接粘贴路径）"
 
     sub = parser.add_subparsers(dest="command", required=True)
 

@@ -1,0 +1,29 @@
+#!/usr/bin/env sh
+# System-wide GUI launcher (installed by .deb / .rpm).
+APP_DIR=/usr/lib/dcmd-filetypes-highlight
+PY=python3
+if ! command -v "$PY" >/dev/null 2>&1; then
+    PY=python
+fi
+if ! command -v "$PY" >/dev/null 2>&1; then
+    echo "Python 3 is required. Install python3 with your package manager." >&2
+    exit 1
+fi
+if ! "$PY" -c 'import tkinter' >/dev/null 2>&1; then
+    MSG="图形界面需要 tkinter，但当前 Python 没有安装它。
+Ubuntu/Debian: sudo apt install python3-tk
+Fedora/RHEL:   sudo dnf install python3-tkinter
+Arch:          sudo pacman -S tk
+openSUSE:      sudo zypper install python3-tk
+
+也可以先用命令行：dcmd-hl install"
+    if command -v zenity >/dev/null 2>&1; then
+        zenity --error --title="Double Commander 文件类型高亮" --text="$MSG" 2>/dev/null || true
+    elif command -v kdialog >/dev/null 2>&1; then
+        kdialog --error "$MSG" 2>/dev/null || true
+    else
+        printf '%s\n' "$MSG" >&2
+    fi
+    exit 1
+fi
+exec "$PY" "$APP_DIR/src/dcmd_hl_gui.py" "$@"

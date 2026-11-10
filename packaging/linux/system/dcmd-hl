@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# System-wide launcher (installed by .deb / .rpm).
+APP_DIR=/usr/lib/dcmd-filetypes-highlight
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "python3 is required. Install it with your package manager." >&2
+    exit 1
+fi
+exec python3 "$APP_DIR/src/dcmd_hl.py" "$@"

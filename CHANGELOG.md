@@ -1,5 +1,22 @@
 # 更新日志
 
+## v1.1.0 (2026-11-09)
+
+**Linux 全平台支持 + 全新一键安装体验**
+
+* **新增 Linux 支持**（Ubuntu / Debian / Linux Mint / Fedora / RHEL / Rocky / AlmaLinux / openSUSE / Arch / Manjaro 等）：
+  * 通用 `tar.gz` + `install.sh`：安装到用户目录，**无需 root**；自动创建 `dcmd-hl` / `dcmd-hl-gui` 命令和桌面菜单入口
+  * `.deb` / `.rpm` 系统包：走发行版包管理器，只安装程序；用户从菜单打开 GUI 点安装，或执行 `dcmd-hl install`
+  * 在线安装器 `install-linux.sh`：下载安装包 + SHA256 校验，一条 `curl ... | bash` 完成
+  * 自动识别 Linux 配置目录：`~/.config/doublecmd`、`XDG_CONFIG_HOME`、便携版 `settings`、Flatpak、Snap
+  * 识别 `doublecmd` / `doublecmd-gtk` / `doublecmd-qt` / `doublecmd-qt6` 等可执行文件名
+  * GUI 适配 Linux 字体回退、`clam` 主题与 `xdg-open`；写入配置保留原文件权限
+  * `scan` 自动跳过 `/proc`、`/sys`、`/dev`、`/run` 等伪文件系统
+  * 新增 Ubuntu + Fedora CI：自动构建、校验包内容、实际安装/卸载测试
+* **Windows 发行包更新到 1.1.0**（win64 / win32），与 Linux 版本号保持一致；功能与安全逻辑同步
+* **兼容 Double Commander 1.2.x**（继续使用 `colors.json` 的 `FileColors`）
+* 文档：新增 [Linux 安装教程](docs/Linux安装教程.md)；README 与技术文档补充 Linux 下载、配置路径、FAQ 和构建说明
+
 ## v1.0.1 (2026-10-19)
 
 **便携版安装失败修复 + 32/64 位分发包**

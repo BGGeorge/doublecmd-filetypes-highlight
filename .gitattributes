@@ -5,6 +5,16 @@
 # .ps1 含中文/BOM，也按原始字节保存（PowerShell 对 LF 脚本解析正常，不做转换最安全）
 *.ps1 -text
 
+# Linux 脚本 / 桌面文件 / 图标源码统一使用 LF（Windows 检出也不会被 core.autocrlf 转成 CRLF）
+*.sh text eol=lf
+*.in text eol=lf
+*.desktop text eol=lf
+*.svg text eol=lf
+
+# 无扩展名的 Linux 启动器也必须是 LF，否则在 Linux 上无法执行
+packaging/linux/system/dcmd-hl text eol=lf
+packaging/linux/system/dcmd-hl-gui text eol=lf
+
 # 二进制文件不做行尾/文本转换
 *.png binary
 *.exe binary
